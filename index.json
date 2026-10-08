@@ -1,0 +1,20 @@
+{
+  "formatVersion": 1,
+  "mods": [
+    {
+      "id": "example-mod",
+      "name": "Example Mod",
+      "author": "GuyFights",
+      "version": "1.0.0",
+      "description": "A declarative manifest example with no gameplay changes.",
+      "compatibility": {
+        "minimum": "0.2.2",
+        "maximum": "0.2.x"
+      },
+      "tags": [
+        "example"
+      ],
+      "manifest": "mods/example-mod/mod.json"
+    }
+  ]
+}
