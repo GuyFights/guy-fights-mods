@@ -1,31 +1,40 @@
 # Guy Fights mod registry
 
-An online catalog of declarative JSON mods for Guy Fights, currently Beta 0.2.2 (a single-file HTML/JavaScript browser game).
+Declarative JSON mod registry targeting Guy Fights Beta 0.2.2.
 
-## Files
+- `index.json`: online catalog for the future in-game Mod Browser.
+- `schema/mod.schema.json`: closed, bounded Mod API v1 manifest schema.
+- `schema/catalog.schema.json`: catalog schema using the same metadata contract.
+- [Mod API v1](docs/mod-api-v1.md): external fields, units, limits, validation, and required game integration.
+- `mods/example-mod/mod.json`: Drunk Guy stat example targeting a verified existing Guy.
+- `mods/example-match-settings/mod.json`: editable match defaults integration template.
 
-- `index.json`: catalog fetched by the future in-game Mod Browser.
-- `schema/mod.schema.json`: JSON Schema for validating mod manifests.
-- `mods/example-mod/mod.json`: minimal example manifest.
+Catalog URL: `https://raw.githubusercontent.com/GuyFights/guy-fights-mods/main/index.json`. Resolve `manifest` paths relative to it. Catalog entries include mod ID, name, author, version, description, compatibility, tags, API version, and manifest URL/path. Shared metadata must match the downloaded manifest exactly.
 
-Fetch the catalog from `https://raw.githubusercontent.com/GuyFights/guy-fights-mods/main/index.json`. Resolve each entry's `manifest` path relative to the catalog URL. Each entry contains `id`, `name`, `author`, `version`, `description`, `compatibility`, `tags`, and `manifest`. The manifest repeats that metadata, omits `manifest`, and adds `formatVersion` and `changes`. Matching metadata must agree between catalog and manifest.
+## Integration status
 
-## Version compatibility
+This repository defines the external API and its explicit whitelist. The supplied Beta 0.2.2 integration reference verifies 12 stable Guy IDs mapped to current `CHARACTERS` names, 10 exact terrain IDs, safe Guy/editor limits, and Drunk Guy defaults; these are documented in the API reference. Test Guys are excluded. Internal property paths are not exposed or guessed.
 
-Versions use numeric `major.minor.patch` strings without the UI's “Beta” prefix. `compatibility.minimum` is inclusive. `compatibility.maximum` is either an inclusive exact version or a patch wildcard such as `0.2.x`, which includes every patch in the `0.2` series. Compare components numerically, never as strings. The example accepts `0.2.2` and later `0.2` patches, but excludes `0.2.1` and `0.3.0`. Reject ranges whose maximum is below the minimum.
+The Drunk Guy example changes HP, base damage, and projectile defaults using `drunk-guy`. The second example changes editable match defaults using proposed external settings. Both require corresponding runtime adapters in the game; these operations have not been confirmed implemented, so the examples remain excluded from the valid, empty browser catalog. Once runtime support and functional testing are confirmed, add their matching entries. Unmodified Beta 0.2.2 is not claimed to support the new API.
 
-`formatVersion: 1` identifies the catalog and manifest format. Mod `version` tracks the mod's release independently of the game version.
+Both examples target minimum `0.2.2`, maximum `0.2.x`. Numeric version comparison accepts later 0.2 patches but excludes 0.3.0. Mods contain only whitelisted data changes. Never execute downloaded JavaScript or code strings; no `eval()`, `new Function()`, script URLs, arbitrary object paths, or executable hooks are supported.
 
-## Declarative changes
+## Validate
 
-`changes` is an object reserved for operations implemented by Guy Fights' own mod API. The example uses `{}` and intentionally has no gameplay effect: no API operations have been defined yet. Future API work must define supported keys, value types, limits, and validation rules before enabling nonempty changes. The current schema therefore accepts only an empty `changes` object.
+With Python 3.10+:
 
-Mods are data only. Never execute downloaded JavaScript, interpret strings as code, or use `eval()` or `new Function()`. Schema validation checks structure; the game must also check compatibility, duplicate IDs, catalog/manifest agreement, and supported API operations before installation. Treat all content as untrusted, render text safely, and reject unsupported format versions or changes. Restrict manifest URLs to trusted HTTPS registry locations.
+```sh
+python -m pip install -r requirements-dev.txt
+python scripts/validate_registry.py
+python -m unittest discover -s tests -v
+```
 
-## Adding a mod
+The validator checks all repository JSON/schema files, manifest structure, catalog agreement and paths, duplicate keys/IDs/edits, finite numbers, forbidden keys, and compatibility ranges. Tests cover accepted categories and rejected unsafe/invalid inputs. These checks do not establish that game IDs or capabilities exist. Runtime validation and game functional tests are still required.
 
-1. Create `mods/<id>/mod.json` using the example and validate it against `schema/mod.schema.json` (JSON Schema Draft 2020-12).
-2. Add matching metadata to the catalog's `mods` array with a relative `manifest` path.
-3. Keep IDs unique and stable; use lowercase letters, numbers, and single separating hyphens. Increment the mod version when releasing changes.
+## Add a mod
 
-The future Mod Browser will fetch the catalog and manifests, validate them, and store installed manifests and enabled mod IDs locally. This repository supplies registry data only; it does not yet implement that browser or the game's mod API.
+1. Use a verified game-owned external ID and supported fields; create `mods/<mod-id>/mod.json` with `formatVersion: 1`, `apiVersion: 1`, metadata, and `changes`.
+2. Add matching metadata to `index.json` with its relative `manifest` path only once game integration works.
+3. Validate, test in the game, and increment the mod version when releasing updates. Keep stable IDs independent of UI names and array positions.
+
+The future browser must fetch and validate manifests, let players choose enabled mods/order, and store those choices locally. Match setting overrides are editable defaults, never locks.
