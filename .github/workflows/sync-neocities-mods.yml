@@ -1,0 +1,96 @@
+name: Sync mods to Neocities
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "index.json"
+      - "mods/**"
+      - "schema/**"
+      - "scripts/**"
+      - "tests/**"
+      - ".github/workflows/sync-neocities-mods.yml"
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install registry validation dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Validate registry
+        run: |
+          python scripts/validate_registry.py
+          python -m unittest tests.test_registry
+
+      - name: Prepare Neocities mirror
+        run: |
+          python - <<'PY'
+          import json
+          import pathlib
+          import shutil
+
+          root = pathlib.Path(".")
+          deploy = root / "deploy"
+
+          if deploy.exists():
+              shutil.rmtree(deploy)
+
+          (deploy / "mods").mkdir(parents=True)
+
+          index_path = root / "index.json"
+          catalog = json.loads(index_path.read_text(encoding="utf-8"))
+
+          shutil.copy2(index_path, deploy / "mods" / "index.json")
+
+          for entry in catalog["mods"]:
+              manifest = entry["manifest"]
+              path = pathlib.PurePosixPath(manifest)
+
+              if (
+                  path.is_absolute()
+                  or ".." in path.parts
+                  or len(path.parts) != 3
+                  or path.parts[0] != "mods"
+                  or path.parts[2] != "mod.json"
+              ):
+                  raise SystemExit(f"Unsafe manifest path: {manifest}")
+
+              source = root.joinpath(*path.parts)
+
+              if not source.is_file():
+                  raise SystemExit(f"Missing manifest: {manifest}")
+
+              destination = deploy.joinpath(*path.parts)
+              destination.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(source, destination)
+
+          print("Files prepared for Neocities:")
+          for path in sorted(deploy.rglob("*")):
+              if path.is_file():
+                  print(path.relative_to(deploy))
+          PY
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Install Neocities CLI
+        run: gem install neocities --no-document
+
+      - name: Upload mod mirror
+        env:
+          NEOCITIES_API_KEY: ${{ secrets.NEOCITIES_API_KEY }}
+        run: neocities push deploy
